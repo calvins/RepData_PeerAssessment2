@@ -1,0 +1,34 @@
+---
+title: "Effects of Severe Weather Events Across America"
+author: "Calvin Seto"
+date: "July 6, 2015"
+output: html_document
+---
+
+# Questions
+
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+2. Across the United States, which types of events have the greatest economic consequences?
+
+# Title
+
+# Synopsis
+
+# Data Processing
+
+# Data Exploration
+
+# Results
+
+## References
+[Storm Events Database Event Types](http://www.ncdc.noaa.gov/stormevents/details.jsp)
+
+[Storm Data Publication](http://www.ncdc.noaa.gov/IPS/sd/sd.html#DESCRIPTION)
+
+[Severe weather terminology (United States) wiki](https://en.wikipedia.org/wiki/Severe_weather_terminology_(United_States))
+
+[National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+
+[National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
