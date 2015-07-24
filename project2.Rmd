@@ -1,20 +1,28 @@
 ---
 title: "Effects of Severe Weather Events Across America"
 author: "Calvin Seto"
-date: "July 6, 2015"
+date: "July 26, 2015"
 output: 
   html_document: 
     keep_md: yes
 ---
 
 # Synopsis
-This document attempts to identify the most catastrophic weather events America has faced during the past 60 years and the impact on the population health and economic well-being.  The Storm Events Database contains information from 1950 to November 2011 and has undergone major changes in order to fix data inconsistencies.  It's expected that some effort will be necessary to clean and tidy data set variables such as event type, fatalities, injuries, property damage, property damage units, crop damage, and crop damage units.  After creating the appropriate subsets, we'll create dotplots for health, fatalities, injuries, economic, property, and crop damage for each of the 48 permissible event types.
-The top three event types for health were one, two, and three.
-The top three event types for fatalities were one, two, and three.
-The top three event types for injuries were one, two, and three.
-The top three event types for economic damage were one, two, and three.
-The top three event types for property damage were one, two, and three.
-The top three event types for crop damage were one, two, and three.
+This document attempts to identify the most catastrophic weather events America has faced during the past 60 years and the impact on the population health and economic well-being.  The Storm Events Database contains information from 1950 to November 2011 and has undergone major changes in order to fix data inconsistencies.  It's expected that some effort will be necessary to clean and tidy data set variables such as event type, fatalities, injuries, property damage, property damage units, crop damage, and crop damage units.  After creating the appropriate subsets, we'll create dotplots for health, fatalities, injuries, economic, property, and crop damage for each of the 48 permissible event types.  The following table summarizes our findings.
+
+```{r summaryTable, echo=FALSE}
+library(knitr)
+hh <- c("Tornado","Thunderstorm Wind","Excessive Heat")
+ff <- c("Tornado","Excessive Heat","Heat")
+ii <- c("Tornado","Thunderstorm Wind","Flood")
+ee <- c("Flood","Hurricane (Typhoon)","Tornado")
+pp <- c("Flood","Hurricane (Typhoon)","Tornado")
+cc <- c("Drought","Flood","Hurricane (Typhoon)")
+mm <- as.data.frame(rbind(hh,ff,ii,ee,pp,cc))
+names(mm) <- c("First", "Second","Third")
+row.names(mm) <- c("Health","Fatalities","Injuries","Economic","Property Damage","Crop Damage")
+kable(mm)
+```
 
 # Data Processing
 The data can be downloaded from the [project web site](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) as a bzip compressed file and it is saved to the local disk as StormData.csv.bz2, in the working directory's data folder.  We'll load the CSV file with read.csv() and use bzfile() to access the bzip file without uncompressing it.  To make grouping and summarizing easier, we'll configure dplyr.
@@ -25,33 +33,38 @@ storm <- tbl_df(mydf)
 rm("mydf")
 ```
 
-# Data Exploration
 As we explore the data set, we see its size, the first few rows of data, and identify variables that can help us answer our questions: BGN_DATE, COUNTY, STATE, EVTYPE, END_DATE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS, and REFNUM.
 
+To help calculate property and crop damage later, we'll create two variables called cleanPROPDMG and cleanCROPDMG.
+  
 To see how many events were recorded in the Storm Database, let's create a table of event counts by year from 1950 to 2011.
-We create the 5 number summary and a table of the number of weather events counted over the years.
-```{r exploreData, echo=TRUE}
+We create the 5 number summary and a few rows of data from the number of weather events counted over the years.
+```{r exploreData, echo=TRUE, message=FALSE}
+library(dplyr)
 dim(storm)
 head(storm)
 names(storm)
+
+storm$cleanPROPDMG <- NA
+storm$cleanCROPDMG <- NA
 
 library(lubridate)
 totalEventsByYear <- as.data.frame(table(year(mdy_hms(storm$BGN_DATE))))
 names(totalEventsByYear) <- c("year","count")
 summary(totalEventsByYear$count)
+head(arrange(totalEventsByYear,desc(count)))
+
 ```
 
 The str() function run on the EVTYPE variable shows it is quite messy being a Factor variable with 985 levels.
-Let's do a count of the event types in the database and view the types in decreasing count order.  There are too many messy values for EVTYPE, so we'll reclassify them using the 48 allowed values for storm data events specified in the NWSI 10-1065 document.  The idea is to create a new factor variable using a custom function makeCleanEventType() which will examine each messy EVTYPE value and map it to one of the 48 allowed values.  The strings in this function were created using the helpful features of text editors like TextMate or Notepad++, and dplyr query results.  The new factor variable is called storm$cleanEventType.  To help calculate property and crop damage later, we'll create two variables called cleanPROPDMG and cleanCROPDMG.
+Let's do a count of the event types in the database and view the types in decreasing count order.  There are too many messy values for EVTYPE, so we'll reclassify them using the 48 allowed values for storm data events specified in the NWSI 10-1065 document.  The idea is to create a new factor variable using a custom function makeCleanEventType() which will examine each messy EVTYPE value and map it to one of the 48 allowed values.  The strings in this function were created using the helpful features of text editors like TextMate or Notepad++, and dplyr query results.  The new factor variable is called storm$cleanEventType.
 
 ```{r exploreEVTYPE, echo=TRUE}
 str(storm$EVTYPE)
 countEventTypes <- as.data.frame(table(storm$EVTYPE))
 names(countEventTypes) <- c("eventType","count")
-countEventTypes[order(countEventTypes$count,decreasing=TRUE),]
+head(countEventTypes[order(countEventTypes$count,decreasing=TRUE),])
 
-storm$cleanPROPDMG <- NA
-storm$cleanCROPDMG <- NA
 ```
 
 ```{r makeCleanEventType, echo=TRUE, results="hide"}
@@ -140,50 +153,55 @@ makeCleanEventType <- function(df) {
 }
 ```
 
-Our cleaning mapped all event types, to one of the 10-1065 document types, except for 1,648 observations which still contain 469 messy event types.
+We source the makeCleanEventType function into R and run it with the storm R object.  Our cleaning mapped all event types, to one of the 10-1065 document types, except for 1,648 observations which still contain 469 messy event types and have missing values in the cleanEventType variable.
 
-To handle this, we can sift the entire data set by only selecting events which contain positive values in the variables FATALITIES, INJURIES, PROPDMG, and CROPDMG.  The first cut reduces our sample size from 902,297 to 285,851; 6,974 fatalities (f1), 17,604 injuries (i1), 239,174 property damage (p1), and 22,099 crop damage (c1).
+To handle these remaining messy event types, we only select events which contain positive values in the variables FATALITIES, INJURIES, PROPDMG, and CROPDMG.  The first cut reduces our sample size from 902,297 to 285,851; 6,974 fatalities (f1), 17,604 injuries (i1), 239,174 property damage (p1), and 22,099 crop damage (c1).
 
-There are 4 missing values in fatalities, 5 in injuries, 22 in property damage, and 31 in crop damage.  When we look at the event types for each we see the following for
+Looking at the remaining messy event types in these subsets, we find  4 missing values in fatalities, 5 in injuries, 22 in property damage, and 31 in crop damage.  Specifically, these event types are for
+
 -fatalities
+
 MARINE MISHAP   Marine Accident DROWNING
+
 -injuries
+
 MARINE MISHAP   HIGH            Marine Accident ROGUE WAVE      OTHER
+
 -property damage
-# [1] SEVERE TURBULENCE      APACHE COUNTY          ?                      Other                 
-# [5] Marine Accident        OTHER                  GRADIENT WIND          gradient wind         
-# [9] Gradient wind          WIND AND WAVE          ASTRONOMICAL HIGH TIDE 
+
+SEVERE TURBULENCE      APACHE COUNTY          ?                      Other                 
+
+Marine Accident        OTHER                  GRADIENT WIND          gradient wind         
+
+Gradient wind          WIND AND WAVE          ASTRONOMICAL HIGH TIDE 
+
 -crop damage
-# EXCESSIVE WETNESS OTHER
 
-We won't include this data because they are not one of the 48 values from the 10-1065 document and make a note to ask a subject matter expert for guidance.
+EXCESSIVE WETNESS OTHER
 
-We'll query the data as before, and additionally exclude the data with missing values in the cleanEventType and our sample sizes are 6,970 fatalities (f2), 17,559 injuries (i2), 239,152 property damage (p2), and 22,068 crop damage (c2) for a total of 285,749.
+We exclude this small subset of data because they are not one of the 48 values from the 10-1065 document and make a note to ask a subject matter expert for guidance.  The impact on the analysis will be small.
 
-We check for missing values in the cleanEventType variable for each subset and find none, so all event types in our samples have been mapped to the 48 allowed values.  We'll do some housekeeping and remove the first four subsets f1, i1, p1, and c2.  At this point, we can total fatalies and injuries by event type.
+We'll query the data as before, and additionally exclude the data with missing values in the cleanEventType and our new sample sizes are 6,970 fatalities (f2), 17,559 injuries (i2), 239,152 property damage (p2), and 22,068 crop damage (c2) for a total of 285,749.
 
-```{r cleanEventType, echo=TRUE}
+We check for missing values in the cleanEventType variable for each subset and find none, so all event types in our samples have been mapped to the 48 allowed values.  At this point, we can total fatalies and injuries by event type.
+
+```{r cleanEventType, echo=TRUE, message=FALSE}
 library(dplyr)
 source("makeCleanEventType.R")
 storm <- makeCleanEventType(storm)
 
 stillMessyStorm <- subset(storm,is.na(cleanEventType)) # 1648 obs
-unique(stillMessyStorm$EVTYPE) # 469 obs
+head(unique(stillMessyStorm$EVTYPE)) # 469 obs
 
 f1 <- subset(storm,FATALITIES>0) # 6974 obs
 i1 <- subset(storm,INJURIES>0) # 17604 obs
 p1 <- subset(storm,PROPDMG>0) # 239174 obs
 c1 <- subset(storm,CROPDMG>0) # 22099 obs
 
-# there are 4 NA in f, 5 NA in i, 22 NA in p, and 31 NA in c
-
-unique(subset(f1,is.na(f1$cleanEvent))) # MARINE MISHAP   Marine Accident DROWNING
-unique(subset(i1,is.na(i1$cleanEvent))) # MARINE MISHAP   HIGH            Marine Accident ROGUE WAVE      OTHER
-unique(subset(p1,is.na(p1$cleanEvent))) 
-# [1] SEVERE TURBULENCE      APACHE COUNTY          ?                      Other                 
-# [5] Marine Accident        OTHER                  GRADIENT WIND          gradient wind         
-# [9] Gradient wind          WIND AND WAVE          ASTRONOMICAL HIGH TIDE 
-unique(subset(c1,is.na(c1$cleanEvent))) # EXCESSIVE WETNESS OTHER
+subset(f1,is.na(f1$cleanEvent))$EVTYPE
+subset(i1,is.na(i1$cleanEvent))$EVTYPE 
+subset(p1,is.na(p1$cleanEvent))$EVTYPE
+subset(c1,is.na(c1$cleanEvent))$EVTYPE
 
 f2 <- subset(storm,FATALITIES>0 & !is.na(cleanEventType)) # 6970 obs
 i2 <- subset(storm,INJURIES>0 & !is.na(cleanEventType)) # 17559 obs
@@ -195,25 +213,23 @@ sum(is.na(i2$cleanEventType))
 sum(is.na(p2$cleanEventType))
 sum(is.na(c2$cleanEventType))
 
-rm(f1);rm(i1);rm(p1);rm(c1)
-
 totF <- summarize(group_by(f2,cleanEventType),sum(FATALITIES))
 names(totF) <- c("cleanEventType","totalFatalities")
 totI <- summarize(group_by(i2,cleanEventType),sum(INJURIES))
 names(totI) <- c("cleanEventType","totalInjuries")
 ```
 
-Property and crop damage data reside in the PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP variables.  The 10-1065 document tells us that in te PROPDMGEXP and CROPDMGEXP variables, K or k means multiple of 1000, M or m means multiple of 1,000,000, and B or b means multiple of 1,000,000,000.
+Property and crop damage data reside in the PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP variables.  For the PROPDMGEXP and CROPDMGEXP variables, the 10-1065 document tells us that values of K or k means multiple of 1 thousand (1000), M or m means multiple of 1 million (1,000,000), and B or b means multiple of 1 billion (1,000,000,000).
 
-We find 327 observations with messy property damage data and 15 observations with messy crop damage data.  Summaries show a maximum of 150 for property damage and 60 for crop damage and the values for PROPDMGEXP are + 0   5 6 4 h 2 7 3 H - and the values for CROPDMGEXP is 0.  The list of event types for these messy property damage observations are:
- [1] Flood             High Wind         Storm Surge/Tide  Flash Flood       Lightning         Tornado          
- [7] Thunderstorm Wind Heavy Snow        Hail              Winter Storm      Ice Storm        
-and the list of event types for the messy crop damage observations are:
- [1] Hail              Thunderstorm Wind Tornado
+We find 327 observations with messy property damage data and values of + 0   5 6 4 h 2 7 3 H - for PROPDMGEXP.  The 11 event types for these messy property damage observations are:
+Flood             High Wind         Storm Surge/Tide  Flash Flood       Lightning         Tornado Thunderstorm Wind Heavy Snow        Hail              Winter Storm      Ice Storm
+A summary shows a maximum of 150 for property damage.
+
+We find 15 observations with messy crop damage data and values of 0 for CROPDMGEXP.  The 3 event types for these messy crop damage observations are: Hail, Thunderstorm Wind, Tornado.  A summary shows a maximum of 60 for crop damage.
 
 We'll exclude these observations from our analysis because they appear to have negligible effects.  Now we can compute the total property and crop damages.
 
-We'll select data where property and crop damage are positive and cleanEventType does not have missing values, i.e. event successfully mapped to an allowed event type specified in document 10-1065.  But we will also include a test for PROPDMGEXP or CROPDMGEXP must be a valid multiplier of K or k, M or m, or B or b.
+We'll select data where property and crop damage are positive and cleanEventType does not have missing values, i.e. event successfully mapped to an allowed event type specified in document 10-1065.  But we will also include a test that PROPDMGEXP or CROPDMGEXP must be a valid multiplier of K or k, M or m, or B or b.
 This gives us p2 with 238,825 obs, which we divide into three subsets: sskp2 with 227,463 obs, ssmp2 with 11,322 obs, and ssbp2 with 40 obs.  In each subset, we compute the cleanPROPDMG variable using the appropriate multiplier; 1 thousand, 1 million, or 1 billion.  Lastly, we rbind sskp2, ssmp2, and ssbp2 into the final p3 subset that contains the cleanPROPDMG data for the 238,825 observations.
 
 The crop damage data will be processed with the same logic as the property damage data and the final c3 subset contains the cleanCROPDMG data for the 22,053 observations.  We can now group by event type and sum the property and crop damage.
@@ -247,9 +263,6 @@ ssmc2$cleanCROPDMG <- ssmc2$CROPDMG * 1000000
 ssbc2$cleanCROPDMG <- ssbc2$CROPDMG * 1000000000
 c3 <- rbind(sskc2, ssmc2, ssbc2)
 
-rm(p2);rm(sskp2);rm(ssmp2);rm(ssbp2)
-rm(c2);rm(sskc2);rm(ssmc2);rm(ssbc2)
-
 totP <- summarize(group_by(p3,cleanEventType),sum(cleanPROPDMG))
 names(totP) <- c("cleanEventType","totalPropertyDamage")
 
@@ -257,7 +270,7 @@ totC <- summarize(group_by(c3,cleanEventType),sum(cleanCROPDMG))
 names(totC) <- c("cleanEventType","totalCropDamage")
 ```
 
-We can combine the totals for fatalities and injuries into a single measure of population health.  Similarly, property and crop damage can be combined into a single measure of economic consequence.
+We combine the totals for fatalities and injuries into a single measure of population health.  Similarly, property and crop damage can be combined into a single measure of economic consequence.  Now we sort each summary in descending order and display so it is easy to see the top three weather events in each of the six groups.
 
 ```{r makeHealthAndEconomic, echo=TRUE}
 totHealth1 <- totF
@@ -275,37 +288,59 @@ names(totEconomic2) <- c("cleanEventType","total")
 totEconomic <- rbind(totEconomic1,totEconomic2)
 totE <- summarize(group_by(totEconomic,cleanEventType),sum(total))
 names(totE) <- c("cleanEventType","totalEconomicDamage")
+
+totH[order(totH$totalHealthDamage,decreasing = TRUE),]
+totF[order(totF$totalFatalities,decreasing=TRUE),]
+totI[order(totI$totalInjuries,decreasing = TRUE),]
+totE[order(totE$totalEconomicDamage,decreasing = TRUE),]
+totP[order(totP$totalPropertyDamage,decreasing = TRUE),]
+totC[order(totC$totalCropDamage,decreasing = TRUE),]
+
 ```
 
-We can now produce dot plots of health, fatalities, injuries, economic, property damage, and crop damage for each of the 48 event types.  We'll add three colors to each dot so we can easily see which event types are most harmful to population health and well-being.
+Now we produce dot plots of health, fatalities, injuries, economic, property damage, and crop damage by weather event type.  We'll add three colors to each dot plot so we can easily see which event types are most harmful to population health and well-being.
 
 ```{r makePlot1, echo=TRUE, fig.height=17}
 par(mfrow = c(3,1))
 dotchart(totH$totalHealthDamage,labels=totH$cleanEventType,cex=.7,
-         main="Health by Cleaned Event Type",
-         xlab="Count of Health",color=c("red","blue", "darkgreen"))
+         main="Health Impact by Weather Event Across America",
+         xlab="Count of Occurrences affecting Health",color=c("red","blue", "darkgreen"))
 dotchart(totF$totalFatalities,labels=totF$cleanEventType,cex=.7,
-         main="Fatalities by Cleaned Event Type",
+         main="Fatalities by Weather Event Across America",
          xlab="Count of Fatalities",color=c("red","blue", "darkgreen"))
 dotchart(totI$totalInjuries,labels=totI$cleanEventType,cex=.7,
-         main="Injuries by Cleaned Event Type",
+         main="Injuries by Weather Event Across America",
          xlab="Count of Injuries",color=c("red","blue", "darkgreen"))
 ```
 
 ```{r makePlot2, echo=TRUE, fig.height=17}
 par(mfrow = c(3,1))
 dotchart(totE$totalEconomicDamage,labels=totE$cleanEventType,cex=.7,
-         main="Economic Damage by Cleaned Event Type",
-         xlab="Count of Economic Damage",color=c("red","blue", "darkgreen"))
+         main="Economic Damage by Weather Event Across America",
+         xlab="Total Economic Damage",color=c("red","blue", "darkgreen"))
 dotchart(totP$totalPropertyDamage,labels=totP$cleanEventType,cex=.7,
-         main="Property Damage by Cleaned Event Type",
+         main="Property Damage by Weather Event Across America",
          xlab="Total Property Damage",color=c("red","blue", "darkgreen"))
 dotchart(totC$totalCropDamage,labels=totC$cleanEventType,cex=.7,
-         main="Crop Damage by Cleaned Event Type",
+         main="Crop Damage by Weather Event Across America",
          xlab="Total Crop Damage",color=c("red","blue", "darkgreen"))
 ```
 
 # Results
+Compiling the data from our tables and figures, we find the top three weather events impacting population health are Tornado with 97,023 fatalities/injuries, Thunderstorm Wind with 10,251, and Excessive Heat with 8,805.
+
+Our country's economic well-being was hit hardest by Floods with $161,345,317,400 in damages, Hurricane (Typhoon) with $90,872,527,810, and Tornado with $58,959,412,590.
+
+When we break up health into the two components fatality and injuries, the top three for each respectively are
+
+Tornado with 5,659, Excessive Heat with  2,058, and Heat 1,118.
+
+Tornado with 91,364, Thunderstorm Wind with 9,537, and Flood with 6,889.
+
+Separating property damage and crop damage, we get 
+Flood with $150,394,322,350 in damages, Hurricane (Typhoon) with $85,356,410,010, and Tornado with $58,541,951,230.
+
+and Drought with $13,972,571,780, Flood $10,950,995,050, and Hurricane (Typhoon) $5,516,117,800.
 
 ## References
 [Storm Events Database Event Types](http://www.ncdc.noaa.gov/stormevents/details.jsp)
