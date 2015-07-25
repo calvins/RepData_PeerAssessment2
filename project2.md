@@ -630,7 +630,7 @@ totC[order(totC$totalCropDamage,decreasing = TRUE),]
 ## ..                     ...             ...
 ```
 
-Now we produce dot plots of health, fatalities, injuries, economic, property damage, and crop damage by weather event type.  We'll add three colors to each dot plot so we can easily see which event types are most harmful to population health and well-being.
+Now we produce 2 dot plots, each with 3 panels; one for effects on health, fatalities and injuries and a second dot plot with 3 panels for effects on economic well-being, property and crop damage by weather event type.  We'll add three colors to each dot plot so we can easily see which event types are most harmful to population health and well-being.
 
 
 ```r
