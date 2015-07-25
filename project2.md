@@ -3,7 +3,8 @@ Calvin Seto
 July 26, 2015  
 
 # Synopsis
-This document attempts to identify the most catastrophic weather events America has faced during the past 60 years and the impact on the population health and economic well-being.  The Storm Events Database contains information from 1950 to November 2011 and has undergone major changes in order to fix data inconsistencies.  It's expected that some effort will be necessary to clean and tidy data set variables such as event type, fatalities, injuries, property damage, property damage units, crop damage, and crop damage units.  After creating the appropriate subsets, we'll create dotplots for health, fatalities, injuries, economic, property, and crop damage for each of the 48 permissible event types.  The following table summarizes our findings.
+This document attempts to identify the most catastrophic weather events America has faced during the past 60 years and the impact on the population health and economic well-being.  A Google search of "natural disasters in america" returns answers such as hurricane, drought, fire and earthquake, heat wave, flood, and tornado.  The Storm Events Database contains information from 1950 to November 2011 and has undergone major changes in order to fix data inconsistencies.  It's expected that some effort will be necessary to clean and tidy data set variables such as event type, fatalities, injuries, property damage, property damage units, crop damage, and crop damage units.  We also need to use some common sense to exclude some data which doesn't appear to have a huge impact, but we'll be sure to consult with an expert about this and the data cleaning rules. After creating subsets that further refine the data, we'll create dot plots for health, fatalities, injuries, economic, property, and crop damage for each of the 48 permissible event types specified in National Weather Service Instruction document 10-1605.  The following table shows the top three weather events impacting America in each area, from health to crop damage.
+
 
 
                   First     Second                Third               
@@ -110,7 +111,7 @@ head(arrange(totalEventsByYear,desc(count)))
 ```
 
 The str() function run on the EVTYPE variable shows it is quite messy being a Factor variable with 985 levels.
-Let's do a count of the event types in the database and view the types in decreasing count order.  There are too many messy values for EVTYPE, so we'll reclassify them using the 48 allowed values for storm data events specified in the NWSI 10-1065 document.  The idea is to create a new factor variable using a custom function makeCleanEventType() which will examine each messy EVTYPE value and map it to one of the 48 allowed values.  The strings in this function were created using the helpful features of text editors like TextMate or Notepad++, and dplyr query results.  The new factor variable is called storm$cleanEventType.
+Let's do a count of the event types in the database and view some of the types in decreasing count order.  There are too many messy values for EVTYPE, so we'll reclassify them using the 48 allowed values for storm data events specified in the NWSI 10-1605 document.  The idea is to create a new factor variable called cleanEventType, using a custom function makeCleanEventType() which will examine each messy EVTYPE value and map it to one of the 48 allowed values.  The strings in this function were created using the helpful features of text editors like TextMate or Notepad++, and dplyr query results.
 
 
 ```r
@@ -224,7 +225,9 @@ makeCleanEventType <- function(df) {
 }
 ```
 
-We source the makeCleanEventType function into R and run it with the storm R object.  Our cleaning mapped all event types, to one of the 10-1065 document types, except for 1,648 observations which still contain 469 messy event types and have missing values in the cleanEventType variable.
+# Results
+
+We source the makeCleanEventType function into R and run it with the storm R object.  Our cleaning mapped all event types, to one of the 10-1605 document types, except for 1,648 observations which still contain 469 messy event types and have missing values in the cleanEventType variable.
 
 To handle these remaining messy event types, we only select events which contain positive values in the variables FATALITIES, INJURIES, PROPDMG, and CROPDMG.  The first cut reduces our sample size from 902,297 to 285,851; 6,974 fatalities (f1), 17,604 injuries (i1), 239,174 property damage (p1), and 22,099 crop damage (c1).
 
@@ -250,7 +253,7 @@ Gradient wind          WIND AND WAVE          ASTRONOMICAL HIGH TIDE
 
 EXCESSIVE WETNESS OTHER
 
-We exclude this small subset of data because they are not one of the 48 values from the 10-1065 document and make a note to ask a subject matter expert for guidance.  The impact on the analysis will be small.
+We exclude this small subset of data because they are not one of the 48 values from the 10-1605 document and make a note to ask a subject matter expert for guidance.  The impact on the analysis will be small.
 
 We'll query the data as before, and additionally exclude the data with missing values in the cleanEventType and our new sample sizes are 6,970 fatalities (f2), 17,559 injuries (i2), 239,152 property damage (p2), and 22,068 crop damage (c2) for a total of 285,749.
 
@@ -375,17 +378,23 @@ totI <- summarize(group_by(i2,cleanEventType),sum(INJURIES))
 names(totI) <- c("cleanEventType","totalInjuries")
 ```
 
-Property and crop damage data reside in the PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP variables.  For the PROPDMGEXP and CROPDMGEXP variables, the 10-1065 document tells us that values of K or k means multiple of 1 thousand (1000), M or m means multiple of 1 million (1,000,000), and B or b means multiple of 1 billion (1,000,000,000).
+Property and crop damage data reside in the PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP variables.  For the PROPDMGEXP and CROPDMGEXP variables, the 10-1605 document tells us that values of K or k means multiple of 1 thousand (1000), M or m means multiple of 1 million (1,000,000), and B or b means multiple of 1 billion (1,000,000,000).
 
 We find 327 observations with messy property damage data and values of + 0   5 6 4 h 2 7 3 H - for PROPDMGEXP.  The 11 event types for these messy property damage observations are:
+
 Flood             High Wind         Storm Surge/Tide  Flash Flood       Lightning         Tornado Thunderstorm Wind Heavy Snow        Hail              Winter Storm      Ice Storm
+
 A summary shows a maximum of 150 for property damage.
 
-We find 15 observations with messy crop damage data and values of 0 for CROPDMGEXP.  The 3 event types for these messy crop damage observations are: Hail, Thunderstorm Wind, Tornado.  A summary shows a maximum of 60 for crop damage.
+We find 15 observations with messy crop damage data and values of 0 for CROPDMGEXP.  The 3 event types for these messy crop damage observations are:
+
+Hail, Thunderstorm Wind, Tornado.
+
+A summary shows a maximum of 60 for crop damage.
 
 We'll exclude these observations from our analysis because they appear to have negligible effects.  Now we can compute the total property and crop damages.
 
-We'll select data where property and crop damage are positive and cleanEventType does not have missing values, i.e. event successfully mapped to an allowed event type specified in document 10-1065.  But we will also include a test that PROPDMGEXP or CROPDMGEXP must be a valid multiplier of K or k, M or m, or B or b.
+We'll select data where property and crop damage are positive and cleanEventType does not have missing values, i.e. event successfully mapped to an allowed event type specified in document 10-1605.  But we will also include a test that PROPDMGEXP or CROPDMGEXP must be a valid multiplier of K or k, M or m, or B or b.
 This gives us p2 with 238,825 obs, which we divide into three subsets: sskp2 with 227,463 obs, ssmp2 with 11,322 obs, and ssbp2 with 40 obs.  In each subset, we compute the cleanPROPDMG variable using the appropriate multiplier; 1 thousand, 1 million, or 1 billion.  Lastly, we rbind sskp2, ssmp2, and ssbp2 into the final p3 subset that contains the cleanPROPDMG data for the 238,825 observations.
 
 The crop damage data will be processed with the same logic as the property damage data and the final c3 subset contains the cleanCROPDMG data for the 22,053 observations.  We can now group by event type and sum the property and crop damage.
@@ -655,7 +664,6 @@ dotchart(totC$totalCropDamage,labels=totC$cleanEventType,cex=.7,
 
 ![](project2_files/figure-html/makePlot2-1.png) 
 
-# Results
 Compiling the data from our tables and figures, we find the top three weather events impacting population health are Tornado with 97,023 fatalities/injuries, Thunderstorm Wind with 10,251, and Excessive Heat with 8,805.
 
 Our country's economic well-being was hit hardest by Floods with $161,345,317,400 in damages, Hurricane (Typhoon) with $90,872,527,810, and Tornado with $58,959,412,590.
@@ -670,6 +678,15 @@ Separating property damage and crop damage, we get
 Flood with $150,394,322,350 in damages, Hurricane (Typhoon) with $85,356,410,010, and Tornado with $58,541,951,230.
 
 and Drought with $13,972,571,780, Flood $10,950,995,050, and Hurricane (Typhoon) $5,516,117,800.
+
+With such a great start to studying storm data, we can tackle more questions such as
+
+1. What was the average duration of the most harmful weather events impacting American health and economic well-being?
+
+2. Which states and counties were effected by the most harmful weather events to American health and economic well-being?
+
+3. What is the probability tornado, flood, thunderstorm wind, hurricane (typhoon), or drought will occur next year?
+
 
 ## References
 [Storm Events Database Event Types](http://www.ncdc.noaa.gov/stormevents/details.jsp)
