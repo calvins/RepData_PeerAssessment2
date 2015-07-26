@@ -7,14 +7,14 @@ This document attempts to identify the most catastrophic weather events America 
 
 
 
-                  First     Second                Third               
-----------------  --------  --------------------  --------------------
-Health            Tornado   Thunderstorm Wind     Excessive Heat      
-Fatalities        Tornado   Excessive Heat        Heat                
-Injuries          Tornado   Thunderstorm Wind     Flood               
-Economic          Flood     Hurricane (Typhoon)   Tornado             
-Property Damage   Flood     Hurricane (Typhoon)   Tornado             
-Crop Damage       Drought   Flood                 Hurricane (Typhoon) 
+                  First                 Second              Third               
+----------------  --------------------  ------------------  --------------------
+Health            Tornado               Thunderstorm Wind   Excessive Heat      
+Fatalities        Tornado               Excessive Heat      Heat                
+Injuries          Tornado               Thunderstorm Wind   Flood               
+Economic          Hurricane (Typhoon)   Tornado             Storm Surge/Tide    
+Property Damage   Hurricane (Typhoon)   Tornado             Storm Surge/Tide    
+Crop Damage       Drought               Flood               Hurricane (Typhoon) 
 
 # Data Processing
 The data can be downloaded from the [project web site](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) as a bzip compressed file and it is saved to the local disk as StormData.csv.bz2, in the working directory's data folder.  We'll load the CSV file with read.csv() and use bzfile() to access the bzip file without uncompressing it.  To make grouping and summarizing easier, we'll configure dplyr.
@@ -392,7 +392,11 @@ Hail, Thunderstorm Wind, Tornado.
 
 A summary shows a maximum of 60 for crop damage.
 
-We'll exclude these observations from our analysis because they appear to have negligible effects.  Now we can compute the total property and crop damages.
+We'll exclude these observations from our analysis because they appear to have negligible effects.
+
+Let's examine the observations with billions (B or b) units more closely since they could have a significant impact.  When we subset property and crop damage observations just for units equal to billions, we find 40 property damage observations and 7 crop damage observations.  Summaries for both show a maximum of 115 for property damage and 5 for crop damage.  We'll select REFNUM, PROPDMG, PROPDMGEXP, EVTYPE, cleanEventType and REMARKS and sort in descending PROPDMG order and examine the REMARKS or event narrative to see if estimated property damage was really in the billions.  We'll do the same with CROPDMG and CROPDMGEXP and look at the narratives, also.
+
+This analysis shows that the observation with Property Damage = 115 billion is a mistake since the narrative only mentions damages of $70 million.  We'll move it from the billions subset to the millions subset.  Now we can compute the total property and crop damages.
 
 We'll select data where property and crop damage are positive and cleanEventType does not have missing values, i.e. event successfully mapped to an allowed event type specified in document 10-1605.  But we will also include a test that PROPDMGEXP or CROPDMGEXP must be a valid multiplier of K or k, M or m, or B or b.
 This gives us p2 with 238,825 obs, which we divide into three subsets: sskp2 with 227,463 obs, ssmp2 with 11,322 obs, and ssbp2 with 40 obs.  In each subset, we compute the cleanPROPDMG variable using the appropriate multiplier; 1 thousand, 1 million, or 1 billion.  Lastly, we rbind sskp2, ssmp2, and ssbp2 into the final p3 subset that contains the cleanPROPDMG data for the 238,825 observations.
@@ -460,10 +464,35 @@ summary(messyCrop$CROPDMG)
 ```
 
 ```r
+ssbp2 <- subset(storm,PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='B'|PROPDMGEXP=='b') # 40 obs
+ssbc2 <- subset(storm,CROPDMG>0 & !is.na(cleanEventType) & CROPDMGEXP=='B'|CROPDMGEXP=='b') # 7 obs
+
+summary(ssbp2$PROPDMG)
+```
+
+```
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   0.100   1.450   2.300   6.896   5.000 115.000
+```
+
+```r
+summary(ssbc2$CROPDMG)
+```
+
+```
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   0.200   0.450   1.000   1.944   3.255   5.000
+```
+
+```r
+ssbp3 <- arrange(select(ssbp2,REFNUM,PROPDMG,PROPDMGEXP,EVTYPE,cleanEventType,REMARKS),desc(PROPDMG))
+ssbc3 <- arrange(select(ssbc2,REFNUM,CROPDMG,CROPDMGEXP,EVTYPE,cleanEventType,REMARKS),desc(CROPDMG))
+
 p2 <- subset(storm,PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP %in% c("K","M","B","k","m","b")) # 238825 obs
 sskp2 <- subset(storm,PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='K'|PROPDMGEXP=='k') # 227463 obs
-ssmp2 <- subset(storm,PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='M'|PROPDMGEXP=='m') # 11322 obs
-ssbp2 <- subset(storm,PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='B'|PROPDMGEXP=='b') # 40 obs
+ssbp2 <- subset(storm,!REFNUM==605943 & PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='B'|PROPDMGEXP=='b') # 39 obs
+ssmp2 <- subset(storm,REFNUM==605943 | PROPDMG>0 & !is.na(cleanEventType) & PROPDMGEXP=='M'|PROPDMGEXP=='m') # 11323 obs
+
 sskp2$cleanPROPDMG <- sskp2$PROPDMG * 1000
 ssmp2$cleanPROPDMG <- ssmp2$PROPDMG * 1000000
 ssbp2$cleanPROPDMG <- ssbp2$PROPDMG * 1000000000
@@ -473,6 +502,7 @@ c2 <- subset(storm,CROPDMG>0 & !is.na(cleanEventType) & CROPDMGEXP %in% c("K","M
 sskc2 <- subset(storm,CROPDMG>0 & !is.na(cleanEventType) & CROPDMGEXP=='K'|CROPDMGEXP=='k') # 20128 obs
 ssmc2 <- subset(storm,CROPDMG>0 & !is.na(cleanEventType) & CROPDMGEXP=='M'|CROPDMGEXP=='m') # 1918 obs
 ssbc2 <- subset(storm,CROPDMG>0 & !is.na(cleanEventType) & CROPDMGEXP=='B'|CROPDMGEXP=='b') # 7 obs
+
 sskc2$cleanCROPDMG <- sskc2$CROPDMG * 1000
 ssmc2$cleanCROPDMG <- ssmc2$CROPDMG * 1000000
 ssbc2$cleanCROPDMG <- ssbc2$CROPDMG * 1000000000
@@ -575,10 +605,10 @@ totE[order(totE$totalEconomicDamage,decreasing = TRUE),]
 ## Source: local data frame [48 x 2]
 ## 
 ##         cleanEventType totalEconomicDamage
-## 1                Flood        161345317400
-## 2  Hurricane (Typhoon)         90872527810
-## 3              Tornado         58959412590
-## 4     Storm Surge/Tide         47966079000
+## 1  Hurricane (Typhoon)         90872527810
+## 2              Tornado         58959412590
+## 3     Storm Surge/Tide         47966079000
+## 4                Flood         46460317400
 ## 5                 Hail         19021502320
 ## 6          Flash Flood         18170031760
 ## 7              Drought         15018677780
@@ -596,10 +626,10 @@ totP[order(totP$totalPropertyDamage,decreasing = TRUE),]
 ## Source: local data frame [48 x 2]
 ## 
 ##         cleanEventType totalPropertyDamage
-## 1                Flood        150394322350
-## 2  Hurricane (Typhoon)         85356410010
-## 3              Tornado         58541951230
-## 4     Storm Surge/Tide         47965224000
+## 1  Hurricane (Typhoon)         85356410010
+## 2              Tornado         58541951230
+## 3     Storm Surge/Tide         47965224000
+## 4                Flood         35509322350
 ## 5          Flash Flood         16732868610
 ## 6                 Hail         15974564720
 ## 7    Thunderstorm Wind         10977846280
@@ -666,7 +696,7 @@ dotchart(totC$totalCropDamage,labels=totC$cleanEventType,cex=.7,
 
 Compiling the data from our tables and figures, we find the top three weather events impacting population health are Tornado with 97,023 fatalities/injuries, Thunderstorm Wind with 10,251, and Excessive Heat with 8,805.
 
-Our country's economic well-being was hit hardest by Floods with $161,345,317,400 in damages, Hurricane (Typhoon) with $90,872,527,810, and Tornado with $58,959,412,590.
+Our country's economic well-being was hit hardest by Hurricane (Typhoon) with $90,872,527,810, Tornado with $58,959,412,590, and Storm Surge/Tide with $47,966,079,000.
 
 When we break up health into the two components fatality and injuries, the top three for each respectively are
 
@@ -675,9 +705,9 @@ Tornado with 5,659, Excessive Heat with  2,058, and Heat 1,118.
 Tornado with 91,364, Thunderstorm Wind with 9,537, and Flood with 6,889.
 
 Separating property damage and crop damage, we get 
-Flood with $150,394,322,350 in damages, Hurricane (Typhoon) with $85,356,410,010, and Tornado with $58,541,951,230.
+Hurricane (Typhoon) with $85,356,410,010, Tornado with $58,541,951,230, and Storm Surge/Tide with $47,965,224,000 for property damage
 
-and Drought with $13,972,571,780, Flood $10,950,995,050, and Hurricane (Typhoon) $5,516,117,800.
+and Drought $13,972,571,780, Flood $10,950,995,050, and Hurricane (Typhoon) $5,516,117,800 for crop damage.
 
 With such a great start to studying storm data, we can tackle more questions such as
 
@@ -685,7 +715,7 @@ With such a great start to studying storm data, we can tackle more questions suc
 
 2. Which states and counties were effected by the most harmful weather events to American health and economic well-being?
 
-3. What is the probability tornado, flood, thunderstorm wind, hurricane (typhoon), or drought will occur next year?
+3. What is the probability tornado, hurricane (typhoon), thunderstorm wind, Excessive Heat, drought or flood will occur next year?
 
 
 ## References
